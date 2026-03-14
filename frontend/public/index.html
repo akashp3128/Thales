@@ -4,17 +4,33 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Thales — Multiplayer Computer</title>
+
+  <!-- xterm.js -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.min.js"></script>
+
+  <!-- Monaco Editor -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+
   <style>
     :root {
       --bg-primary: #0d1117;
       --bg-secondary: #161b22;
       --bg-tertiary: #21262d;
+      --bg-hover: #30363d;
+      --border-color: #30363d;
       --text-primary: #e6edf3;
       --text-secondary: #8b949e;
+      --text-muted: #6e7681;
       --accent: #58a6ff;
+      --accent-emphasis: #1f6feb;
       --success: #3fb950;
       --warning: #d29922;
       --error: #f85149;
+      --human-color: #58a6ff;
+      --agent-color: #3fb950;
     }
 
     * {
@@ -27,58 +43,65 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
       background: var(--bg-primary);
       color: var(--text-primary);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
+      height: 100vh;
+      overflow: hidden;
     }
 
-    .container {
-      max-width: 800px;
-      width: 100%;
+    /* ===== LAYOUT ===== */
+    .app {
+      display: grid;
+      grid-template-columns: 250px 1fr 220px;
+      grid-template-rows: 48px 1fr;
+      height: 100vh;
     }
 
+    /* ===== HEADER ===== */
     .header {
-      text-align: center;
-      margin-bottom: 3rem;
+      grid-column: 1 / -1;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .logo {
-      font-size: 4rem;
-      margin-bottom: 1rem;
-    }
-
-    h1 {
-      font-size: 2.5rem;
+      font-size: 1.25rem;
       font-weight: 600;
-      margin-bottom: 0.5rem;
-    }
-
-    .subtitle {
-      color: var(--text-secondary);
-      font-size: 1.2rem;
-    }
-
-    .status-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--bg-tertiary);
-      border-radius: 12px;
-      padding: 2rem;
-      margin-bottom: 2rem;
-    }
-
-    .status-header {
       display: flex;
       align-items: center;
-      gap: 1rem;
-      margin-bottom: 1.5rem;
+      gap: 8px;
     }
 
-    .status-indicator {
-      width: 12px;
-      height: 12px;
+    .logo-icon {
+      font-size: 1.5rem;
+    }
+
+    .phase-badge {
+      background: var(--accent-emphasis);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background: var(--success);
       animation: pulse 2s infinite;
@@ -89,194 +112,509 @@
       50% { opacity: 0.5; }
     }
 
-    .status-indicator.error {
-      background: var(--error);
-    }
-
-    .status-indicator.warning {
-      background: var(--warning);
-    }
-
-    h2 {
-      font-size: 1.25rem;
-      font-weight: 500;
-    }
-
-    .services {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1rem;
-    }
-
-    .service {
-      background: var(--bg-tertiary);
-      padding: 1rem;
-      border-radius: 8px;
-      text-align: center;
-    }
-
-    .service-name {
+    .status-text {
       font-size: 0.85rem;
       color: var(--text-secondary);
-      margin-bottom: 0.5rem;
     }
 
-    .service-status {
-      font-weight: 500;
+    .header-right {
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
+      gap: 12px;
     }
 
-    .service-status .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
+    .connection-count {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
     }
 
-    .service-status.healthy .dot { background: var(--success); }
-    .service-status.unhealthy .dot { background: var(--error); }
-    .service-status.unknown .dot { background: var(--warning); }
-
-    .players-card {
+    /* ===== SIDEBAR (File Tree) ===== */
+    .sidebar {
       background: var(--bg-secondary);
-      border: 1px solid var(--bg-tertiary);
-      border-radius: 12px;
-      padding: 2rem;
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 12px 16px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .sidebar-header button {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+    }
+
+    .sidebar-header button:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .file-tree {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      transition: background 0.1s;
+    }
+
+    .file-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .file-item.active {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .file-item.directory {
+      font-weight: 500;
+    }
+
+    .file-icon {
+      width: 16px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .file-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-item .indent {
+      width: 16px;
+      flex-shrink: 0;
+    }
+
+    /* ===== MAIN CONTENT ===== */
+    .main {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      min-height: 36px;
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-right: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+    }
+
+    .tab.active {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    .tab:hover:not(.active) {
+      background: var(--bg-hover);
+    }
+
+    .tab-close {
+      opacity: 0;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 2px;
+      border-radius: 4px;
+    }
+
+    .tab:hover .tab-close {
+      opacity: 0.5;
+    }
+
+    .tab-close:hover {
+      opacity: 1 !important;
+      background: var(--bg-hover);
+    }
+
+    /* Editor and Terminal Container */
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .editor-container {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .terminal-container {
+      height: 280px;
+      border-top: 1px solid var(--border-color);
+      background: #000;
+      position: relative;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .terminal-tabs {
+      display: flex;
+      gap: 8px;
+    }
+
+    .terminal-tab {
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .terminal-tab.active {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    #terminal {
+      height: calc(100% - 32px);
+    }
+
+    /* Resize handle */
+    .resize-handle {
+      height: 4px;
+      background: var(--border-color);
+      cursor: ns-resize;
+      transition: background 0.2s;
+    }
+
+    .resize-handle:hover {
+      background: var(--accent);
+    }
+
+    /* ===== PLAYERS SIDEBAR ===== */
+    .players-sidebar {
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     .players-header {
-      margin-bottom: 1rem;
+      padding: 12px 16px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-color);
     }
 
-    .player-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
+    .players-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
     }
 
-    .player {
-      background: var(--bg-tertiary);
-      padding: 0.5rem 1rem;
-      border-radius: 20px;
-      font-size: 0.9rem;
+    .player-item {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      background: var(--bg-tertiary);
     }
 
-    .player .avatar {
-      width: 24px;
-      height: 24px;
+    .player-avatar {
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      background: var(--accent);
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .player-avatar.human {
+      background: var(--human-color);
+      color: white;
+    }
+
+    .player-avatar.agent {
+      background: var(--agent-color);
+      color: white;
+    }
+
+    .player-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .player-name {
+      font-size: 0.875rem;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .player-status {
       font-size: 0.75rem;
+      color: var(--text-muted);
     }
 
-    .player.agent .avatar {
+    .player-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
       background: var(--success);
+      flex-shrink: 0;
     }
 
-    .phase-badge {
-      display: inline-block;
-      background: var(--accent);
-      color: var(--bg-primary);
-      padding: 0.25rem 0.75rem;
-      border-radius: 12px;
-      font-size: 0.8rem;
+    /* Services status */
+    .services-section {
+      padding: 12px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .services-title {
+      font-size: 0.7rem;
       font-weight: 600;
-      margin-top: 1rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
     }
 
-    .info {
-      margin-top: 2rem;
+    .service-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      font-size: 0.8rem;
+    }
+
+    .service-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .service-dot.healthy { background: var(--success); }
+    .service-dot.unhealthy { background: var(--error); }
+    .service-dot.unknown { background: var(--warning); }
+
+    /* ===== WELCOME SCREEN ===== */
+    .welcome-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
       text-align: center;
-      color: var(--text-secondary);
-      font-size: 0.9rem;
     }
 
-    .info code {
+    .welcome-icon {
+      font-size: 4rem;
+      margin-bottom: 20px;
+    }
+
+    .welcome-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .welcome-subtitle {
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .welcome-hint {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    .welcome-hint code {
       background: var(--bg-tertiary);
-      padding: 0.2rem 0.5rem;
+      padding: 2px 6px;
       border-radius: 4px;
-      font-family: monospace;
+    }
+
+    /* ===== SCROLLBAR ===== */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--bg-hover);
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <div class="logo">🖥️</div>
-      <h1>Thales</h1>
-      <p class="subtitle">Multiplayer Computer</p>
-      <span class="phase-badge">Phase 0 — Foundation</span>
-    </div>
-
-    <div class="status-card">
-      <div class="status-header">
-        <div class="status-indicator" id="main-indicator"></div>
-        <h2>System Status</h2>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">
+          <span class="logo-icon">🖥️</span>
+          <span>Thales</span>
+        </div>
+        <span class="phase-badge">Phase 1</span>
       </div>
-      <div class="services">
-        <div class="service">
-          <div class="service-name">Web Server</div>
-          <div class="service-status healthy" id="status-web">
-            <span class="dot"></span> Healthy
-          </div>
-        </div>
-        <div class="service">
-          <div class="service-name">Anvil (EVM)</div>
-          <div class="service-status unknown" id="status-anvil">
-            <span class="dot"></span> Checking...
-          </div>
-        </div>
-        <div class="service">
-          <div class="service-name">Ollama (AI)</div>
-          <div class="service-status unknown" id="status-ollama">
-            <span class="dot"></span> Checking...
-          </div>
+      <div class="header-center">
+        <div class="status-dot" id="status-dot"></div>
+        <span class="status-text" id="status-text">Connecting...</span>
+      </div>
+      <div class="header-right">
+        <div class="connection-count">
+          <span>👥</span>
+          <span id="player-count">0</span>
+          <span>connected</span>
         </div>
       </div>
-    </div>
+    </header>
 
-    <div class="players-card">
+    <!-- File Tree Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span>Explorer</span>
+        <button onclick="refreshFiles()" title="Refresh">🔄</button>
+      </div>
+      <div class="file-tree" id="file-tree">
+        <!-- Files populated by JS -->
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <div class="tabs" id="tabs">
+        <!-- Tabs populated by JS -->
+      </div>
+      <div class="content-area">
+        <div class="editor-container" id="editor-container">
+          <div class="welcome-screen" id="welcome-screen">
+            <div class="welcome-icon">🖥️</div>
+            <h2 class="welcome-title">Welcome to Thales</h2>
+            <p class="welcome-subtitle">The Multiplayer Computer</p>
+            <p class="welcome-hint">Select a file from the explorer or use the terminal below</p>
+          </div>
+        </div>
+        <div class="resize-handle" id="resize-handle"></div>
+        <div class="terminal-container" id="terminal-container">
+          <div class="terminal-header">
+            <div class="terminal-tabs">
+              <span class="terminal-tab active">Terminal</span>
+            </div>
+            <span>bash</span>
+          </div>
+          <div id="terminal"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Players Sidebar -->
+    <aside class="players-sidebar">
       <div class="players-header">
-        <h2>🎮 Connected Players (<span id="player-count">0</span>)</h2>
+        Players Online
       </div>
-      <div class="player-list" id="player-list">
-        <div class="player">
-          <span class="avatar">👤</span>
-          <span>Waiting for connections...</span>
+      <div class="players-list" id="players-list">
+        <!-- Players populated by JS -->
+      </div>
+      <div class="services-section">
+        <div class="services-title">Services</div>
+        <div class="service-item">
+          <div class="service-dot healthy" id="service-web"></div>
+          <span>Web Server</span>
+        </div>
+        <div class="service-item">
+          <div class="service-dot unknown" id="service-anvil"></div>
+          <span>Anvil (EVM)</span>
+        </div>
+        <div class="service-item">
+          <div class="service-dot unknown" id="service-ollama"></div>
+          <span>Ollama (AI)</span>
         </div>
       </div>
-    </div>
-
-    <div class="info">
-      <p>WebSocket: <code>ws://localhost:3000/ws</code></p>
-      <p style="margin-top: 0.5rem;">Full UI coming in Phase 1</p>
-    </div>
+    </aside>
   </div>
 
   <script>
     // ==========================================================================
-    // THALES CLIENT — Phase 0 Basic Connection
+    // THALES CLIENT — Phase 1 Real-time UI
     // ==========================================================================
 
+    // State
     let ws = null;
     let clientId = null;
     let players = [];
+    let terminal = null;
+    let editor = null;
+    let openFiles = new Map(); // path -> content
+    let activeFile = null;
+    let fitAddon = null;
 
-    // Connect to WebSocket
+    // ==========================================================================
+    // WEBSOCKET CONNECTION
+    // ==========================================================================
+
     function connect() {
       ws = new WebSocket(`ws://${window.location.host}/ws`);
 
       ws.onopen = () => {
-        console.log('[Thales] Connected to server');
-        // Identify as human
+        console.log('[Thales] Connected');
+        updateStatus('connected', 'Connected');
         ws.send(JSON.stringify({
           type: 'identify',
           playerType: 'human',
@@ -290,90 +628,429 @@
       };
 
       ws.onclose = () => {
-        console.log('[Thales] Disconnected, reconnecting in 2s...');
+        console.log('[Thales] Disconnected');
+        updateStatus('disconnected', 'Reconnecting...');
         setTimeout(connect, 2000);
       };
 
       ws.onerror = (err) => {
-        console.error('[Thales] WebSocket error:', err);
+        console.error('[Thales] Error:', err);
+        updateStatus('error', 'Connection error');
       };
     }
 
     function handleMessage(msg) {
-      console.log('[Thales] Message:', msg.type, msg);
-
       switch (msg.type) {
         case 'welcome':
           clientId = msg.clientId;
-          console.log('[Thales] Assigned ID:', clientId);
           break;
 
         case 'player_list':
           players = msg.players;
-          updatePlayerList();
+          renderPlayers();
           break;
 
         case 'player_joined':
           players.push(msg.player);
-          updatePlayerList();
+          renderPlayers();
           break;
 
         case 'player_left':
           players = players.filter(p => p.id !== msg.playerId);
-          updatePlayerList();
+          renderPlayers();
+          break;
+
+        case 'terminal_output':
+          if (terminal) {
+            terminal.write(msg.data);
+          }
+          break;
+
+        case 'file_changed':
+          // Another user changed a file we have open
+          if (openFiles.has(msg.path) && msg.path !== activeFile) {
+            openFiles.set(msg.path, msg.content);
+          }
           break;
       }
     }
 
-    function updatePlayerList() {
-      const list = document.getElementById('player-list');
-      const count = document.getElementById('player-count');
+    function updateStatus(state, text) {
+      const dot = document.getElementById('status-dot');
+      const textEl = document.getElementById('status-text');
 
-      count.textContent = players.length;
+      dot.style.background = state === 'connected' ? 'var(--success)' :
+                              state === 'error' ? 'var(--error)' : 'var(--warning)';
+      textEl.textContent = text;
+    }
+
+    // ==========================================================================
+    // PLAYERS
+    // ==========================================================================
+
+    function renderPlayers() {
+      const list = document.getElementById('players-list');
+      document.getElementById('player-count').textContent = players.length;
 
       if (players.length === 0) {
-        list.innerHTML = '<div class="player"><span class="avatar">👤</span><span>No players connected</span></div>';
+        list.innerHTML = '<div style="padding: 12px; color: var(--text-muted); font-size: 0.85rem;">No players yet</div>';
         return;
       }
 
       list.innerHTML = players.map(p => `
-        <div class="player ${p.type === 'agent' ? 'agent' : ''}">
-          <span class="avatar">${p.type === 'agent' ? '🤖' : '👤'}</span>
-          <span>${p.name} ${p.id === clientId ? '(you)' : ''}</span>
+        <div class="player-item">
+          <div class="player-avatar ${p.type}">${p.type === 'agent' ? '🤖' : '👤'}</div>
+          <div class="player-info">
+            <div class="player-name">${p.name}${p.id === clientId ? ' (you)' : ''}</div>
+            <div class="player-status">${p.type === 'agent' ? 'AI Agent' : 'Human'}</div>
+          </div>
+          <div class="player-indicator"></div>
         </div>
       `).join('');
     }
 
-    // Fetch system status
-    async function fetchStatus() {
+    // ==========================================================================
+    // FILE TREE
+    // ==========================================================================
+
+    async function loadFiles(path = '') {
+      try {
+        const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+        return data;
+      } catch (e) {
+        console.error('Failed to load files:', e);
+        return { items: [] };
+      }
+    }
+
+    async function refreshFiles() {
+      const data = await loadFiles();
+      renderFileTree(data.items || []);
+    }
+
+    function renderFileTree(items, indent = 0) {
+      const tree = document.getElementById('file-tree');
+
+      if (items.length === 0) {
+        tree.innerHTML = '<div style="padding: 12px 16px; color: var(--text-muted); font-size: 0.85rem;">No files yet</div>';
+        return;
+      }
+
+      // Sort: directories first, then alphabetically
+      items.sort((a, b) => {
+        if (a.type === b.type) return a.name.localeCompare(b.name);
+        return a.type === 'directory' ? -1 : 1;
+      });
+
+      tree.innerHTML = items.map(item => {
+        const icon = item.type === 'directory' ? '📁' : getFileIcon(item.name);
+        return `
+          <div class="file-item ${item.type}"
+               onclick="${item.type === 'directory' ? `toggleDir('${item.name}')` : `openFile('${item.name}')`}"
+               data-path="${item.name}">
+            <span class="file-icon">${icon}</span>
+            <span class="file-name">${item.name}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getFileIcon(name) {
+      const ext = name.split('.').pop().toLowerCase();
+      const icons = {
+        'js': '📜', 'ts': '📘', 'json': '📋', 'md': '📝',
+        'html': '🌐', 'css': '🎨', 'py': '🐍', 'sol': '💎',
+        'sh': '⚡', 'yml': '⚙️', 'yaml': '⚙️', 'txt': '📄'
+      };
+      return icons[ext] || '📄';
+    }
+
+    async function openFile(path) {
+      try {
+        const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
+        if (!res.ok) throw new Error('Failed to load file');
+
+        const data = await res.json();
+        openFiles.set(path, data.content);
+        activeFile = path;
+
+        // Update UI
+        document.querySelectorAll('.file-item').forEach(el => {
+          el.classList.toggle('active', el.dataset.path === path);
+        });
+
+        renderTabs();
+        showEditor(path, data.content);
+      } catch (e) {
+        console.error('Failed to open file:', e);
+      }
+    }
+
+    function renderTabs() {
+      const tabs = document.getElementById('tabs');
+      tabs.innerHTML = Array.from(openFiles.keys()).map(path => `
+        <div class="tab ${path === activeFile ? 'active' : ''}"
+             onclick="switchTab('${path}')"
+             data-path="${path}">
+          <span>${path.split('/').pop()}</span>
+          <span class="tab-close" onclick="event.stopPropagation(); closeTab('${path}')">×</span>
+        </div>
+      `).join('');
+    }
+
+    function switchTab(path) {
+      activeFile = path;
+      renderTabs();
+      showEditor(path, openFiles.get(path));
+    }
+
+    function closeTab(path) {
+      openFiles.delete(path);
+      if (activeFile === path) {
+        const remaining = Array.from(openFiles.keys());
+        activeFile = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+      }
+      renderTabs();
+      if (activeFile) {
+        showEditor(activeFile, openFiles.get(activeFile));
+      } else {
+        document.getElementById('welcome-screen').style.display = 'flex';
+        if (editor) editor.getModel()?.dispose();
+      }
+    }
+
+    // ==========================================================================
+    // MONACO EDITOR
+    // ==========================================================================
+
+    function initMonaco() {
+      require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+
+      require(['vs/editor/editor.main'], function () {
+        // Define dark theme
+        monaco.editor.defineTheme('thales-dark', {
+          base: 'vs-dark',
+          inherit: true,
+          rules: [],
+          colors: {
+            'editor.background': '#0d1117',
+            'editor.foreground': '#e6edf3',
+            'editorLineNumber.foreground': '#6e7681',
+            'editorCursor.foreground': '#58a6ff',
+            'editor.selectionBackground': '#264f78',
+          }
+        });
+
+        monaco.editor.setTheme('thales-dark');
+        console.log('[Thales] Monaco ready');
+      });
+    }
+
+    function showEditor(path, content) {
+      document.getElementById('welcome-screen').style.display = 'none';
+
+      const container = document.getElementById('editor-container');
+
+      // Get language from extension
+      const ext = path.split('.').pop().toLowerCase();
+      const langMap = {
+        'js': 'javascript', 'ts': 'typescript', 'json': 'json',
+        'md': 'markdown', 'html': 'html', 'css': 'css',
+        'py': 'python', 'sol': 'solidity', 'sh': 'shell',
+        'yml': 'yaml', 'yaml': 'yaml'
+      };
+      const language = langMap[ext] || 'plaintext';
+
+      if (editor) {
+        editor.dispose();
+      }
+
+      editor = monaco.editor.create(container, {
+        value: content,
+        language: language,
+        theme: 'thales-dark',
+        fontSize: 14,
+        fontFamily: "'SF Mono', Menlo, Monaco, 'Courier New', monospace",
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+        tabSize: 2,
+        wordWrap: 'on',
+        lineNumbers: 'on',
+        renderWhitespace: 'selection',
+        bracketPairColorization: { enabled: true },
+      });
+
+      // Save on Cmd/Ctrl+S
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {
+        await saveFile(path, editor.getValue());
+      });
+
+      // Track changes
+      editor.onDidChangeModelContent(() => {
+        openFiles.set(path, editor.getValue());
+        // Mark tab as modified
+        const tab = document.querySelector(`.tab[data-path="${path}"]`);
+        if (tab && !tab.classList.contains('modified')) {
+          tab.classList.add('modified');
+          tab.querySelector('span').textContent = path.split('/').pop() + ' •';
+        }
+      });
+    }
+
+    async function saveFile(path, content) {
+      try {
+        const res = await fetch('/api/file', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path, content })
+        });
+
+        if (res.ok) {
+          // Remove modified indicator
+          const tab = document.querySelector(`.tab[data-path="${path}"]`);
+          if (tab) {
+            tab.classList.remove('modified');
+            tab.querySelector('span').textContent = path.split('/').pop();
+          }
+          console.log('[Thales] File saved:', path);
+        }
+      } catch (e) {
+        console.error('Failed to save file:', e);
+      }
+    }
+
+    // ==========================================================================
+    // XTERM.JS TERMINAL
+    // ==========================================================================
+
+    function initTerminal() {
+      terminal = new Terminal({
+        theme: {
+          background: '#0d1117',
+          foreground: '#e6edf3',
+          cursor: '#58a6ff',
+          cursorAccent: '#0d1117',
+          selection: 'rgba(88, 166, 255, 0.3)',
+          black: '#484f58',
+          red: '#ff7b72',
+          green: '#3fb950',
+          yellow: '#d29922',
+          blue: '#58a6ff',
+          magenta: '#bc8cff',
+          cyan: '#39c5cf',
+          white: '#b1bac4',
+        },
+        fontFamily: "'SF Mono', Menlo, Monaco, 'Courier New', monospace",
+        fontSize: 13,
+        cursorBlink: true,
+        cursorStyle: 'bar',
+        scrollback: 10000,
+      });
+
+      fitAddon = new FitAddon.FitAddon();
+      terminal.loadAddon(fitAddon);
+      terminal.loadAddon(new WebLinksAddon.WebLinksAddon());
+
+      terminal.open(document.getElementById('terminal'));
+      fitAddon.fit();
+
+      // Send input to server
+      terminal.onData(data => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'terminal_input', data }));
+        }
+      });
+
+      // Handle resize
+      window.addEventListener('resize', () => {
+        fitAddon.fit();
+        sendTerminalResize();
+      });
+
+      terminal.write('\x1b[1;32m┌─────────────────────────────────────────┐\x1b[0m\r\n');
+      terminal.write('\x1b[1;32m│\x1b[0m  🖥️  \x1b[1mThales Multiplayer Computer\x1b[0m         \x1b[1;32m│\x1b[0m\r\n');
+      terminal.write('\x1b[1;32m│\x1b[0m     Shared terminal session            \x1b[1;32m│\x1b[0m\r\n');
+      terminal.write('\x1b[1;32m└─────────────────────────────────────────┘\x1b[0m\r\n\r\n');
+    }
+
+    function sendTerminalResize() {
+      if (ws && ws.readyState === WebSocket.OPEN && terminal) {
+        ws.send(JSON.stringify({
+          type: 'terminal_resize',
+          cols: terminal.cols,
+          rows: terminal.rows
+        }));
+      }
+    }
+
+    // ==========================================================================
+    // TERMINAL RESIZE HANDLE
+    // ==========================================================================
+
+    function initResizeHandle() {
+      const handle = document.getElementById('resize-handle');
+      const terminalContainer = document.getElementById('terminal-container');
+      let startY, startHeight;
+
+      handle.addEventListener('mousedown', (e) => {
+        startY = e.clientY;
+        startHeight = terminalContainer.offsetHeight;
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        e.preventDefault();
+      });
+
+      function onMouseMove(e) {
+        const delta = startY - e.clientY;
+        const newHeight = Math.max(100, Math.min(600, startHeight + delta));
+        terminalContainer.style.height = newHeight + 'px';
+        if (fitAddon) fitAddon.fit();
+      }
+
+      function onMouseUp() {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        sendTerminalResize();
+      }
+    }
+
+    // ==========================================================================
+    // SERVICE STATUS
+    // ==========================================================================
+
+    async function checkServices() {
       try {
         const res = await fetch('/api/status');
         const status = await res.json();
 
-        // Update indicators
-        updateService('anvil', status.services.anvil);
-        updateService('ollama', status.services.ollama);
-
-        // Update main indicator
-        const indicator = document.getElementById('main-indicator');
-        const allHealthy = status.services.anvil === 'healthy' && status.services.ollama === 'healthy';
-        indicator.className = `status-indicator ${allHealthy ? '' : 'warning'}`;
-
+        updateServiceDot('service-anvil', status.services.anvil);
+        updateServiceDot('service-ollama', status.services.ollama);
       } catch (e) {
-        console.error('[Thales] Status fetch failed:', e);
+        console.error('Failed to check services:', e);
       }
     }
 
-    function updateService(name, status) {
-      const el = document.getElementById(`status-${name}`);
-      el.className = `service-status ${status === 'healthy' ? 'healthy' : status === 'unreachable' ? 'unhealthy' : 'unknown'}`;
-      el.innerHTML = `<span class="dot"></span> ${status.charAt(0).toUpperCase() + status.slice(1)}`;
+    function updateServiceDot(id, status) {
+      const dot = document.getElementById(id);
+      dot.className = 'service-dot ' + (status === 'healthy' ? 'healthy' :
+                                         status === 'unreachable' ? 'unhealthy' : 'unknown');
     }
 
-    // Initialize
-    connect();
-    fetchStatus();
-    setInterval(fetchStatus, 5000);
+    // ==========================================================================
+    // INITIALIZATION
+    // ==========================================================================
+
+    document.addEventListener('DOMContentLoaded', () => {
+      connect();
+      initTerminal();
+      initMonaco();
+      initResizeHandle();
+      refreshFiles();
+      checkServices();
+      setInterval(checkServices, 10000);
+    });
   </script>
 </body>
 </html>

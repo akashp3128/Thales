@@ -1,15 +1,16 @@
 /**
  * =============================================================================
- * THALES WEB SERVER — Phase 0 Foundation
+ * THALES WEB SERVER — Phase 1 Real-time Collaboration
  * =============================================================================
  *
- * Core responsibilities:
+ * Features:
  *   - HTTP server for static files and API
  *   - WebSocket server for real-time collaboration
- *   - File system watching for shared workspace
- *   - Health checks for Docker orchestration
+ *   - PTY terminal sessions shared across clients
+ *   - File system operations (read, write, list)
+ *   - File watching for live updates
+ *   - Player presence tracking
  *
- * Phase 0 scope: Basic server with WebSocket, ready for Phase 1 UI
  * =============================================================================
  */
 
@@ -19,6 +20,8 @@ const WebSocket = require('ws');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const pty = require('node-pty');
+const chokidar = require('chokidar');
 
 // =============================================================================
 // CONFIGURATION
@@ -37,7 +40,7 @@ const app = express();
 const server = http.createServer(app);
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 // =============================================================================
@@ -48,6 +51,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'thales-web',
+    phase: 1,
     timestamp: new Date().toISOString(),
     workspace: WORKSPACE_PATH,
     connections: {
@@ -64,8 +68,8 @@ app.get('/health', (req, res) => {
 app.get('/api/status', async (req, res) => {
   const status = {
     thales: 'running',
-    version: '0.1.0',
-    phase: 0,
+    version: '0.2.0',
+    phase: 1,
     services: {
       web: 'healthy',
       anvil: 'unknown',
@@ -103,11 +107,17 @@ app.get('/api/status', async (req, res) => {
 });
 
 // =============================================================================
-// WORKSPACE FILE LISTING
+// FILE LISTING API
 // =============================================================================
 
 app.get('/api/files', (req, res) => {
-  const targetPath = path.join(WORKSPACE_PATH, req.query.path || '');
+  const relativePath = req.query.path || '';
+  const targetPath = path.join(WORKSPACE_PATH, relativePath);
+
+  // Security: prevent path traversal
+  if (!targetPath.startsWith(WORKSPACE_PATH)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
 
   if (!fs.existsSync(targetPath)) {
     return res.status(404).json({ error: 'Path not found' });
@@ -117,20 +127,110 @@ app.get('/api/files', (req, res) => {
     const stats = fs.statSync(targetPath);
 
     if (stats.isDirectory()) {
-      const items = fs.readdirSync(targetPath).map(name => {
-        const itemPath = path.join(targetPath, name);
-        const itemStats = fs.statSync(itemPath);
-        return {
-          name,
-          type: itemStats.isDirectory() ? 'directory' : 'file',
-          size: itemStats.size,
-          modified: itemStats.mtime
-        };
-      });
-      res.json({ type: 'directory', path: req.query.path || '/', items });
+      const items = fs.readdirSync(targetPath)
+        .filter(name => !name.startsWith('.')) // Hide hidden files
+        .map(name => {
+          const itemPath = path.join(targetPath, name);
+          try {
+            const itemStats = fs.statSync(itemPath);
+            return {
+              name,
+              type: itemStats.isDirectory() ? 'directory' : 'file',
+              size: itemStats.size,
+              modified: itemStats.mtime
+            };
+          } catch (e) {
+            return null;
+          }
+        })
+        .filter(Boolean);
+
+      res.json({ type: 'directory', path: relativePath || '/', items });
     } else {
-      res.json({ type: 'file', path: req.query.path, size: stats.size });
+      res.json({ type: 'file', path: relativePath, size: stats.size });
     }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =============================================================================
+// FILE READ API
+// =============================================================================
+
+app.get('/api/file', (req, res) => {
+  const relativePath = req.query.path || '';
+  const targetPath = path.join(WORKSPACE_PATH, relativePath);
+
+  // Security: prevent path traversal
+  if (!targetPath.startsWith(WORKSPACE_PATH)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  if (!fs.existsSync(targetPath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  try {
+    const stats = fs.statSync(targetPath);
+
+    if (stats.isDirectory()) {
+      return res.status(400).json({ error: 'Cannot read directory as file' });
+    }
+
+    // Check if file is too large (10MB limit)
+    if (stats.size > 10 * 1024 * 1024) {
+      return res.status(413).json({ error: 'File too large' });
+    }
+
+    const content = fs.readFileSync(targetPath, 'utf-8');
+    res.json({
+      path: relativePath,
+      content,
+      size: stats.size,
+      modified: stats.mtime
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =============================================================================
+// FILE WRITE API
+// =============================================================================
+
+app.put('/api/file', (req, res) => {
+  const { path: relativePath, content } = req.body;
+
+  if (!relativePath) {
+    return res.status(400).json({ error: 'Path required' });
+  }
+
+  const targetPath = path.join(WORKSPACE_PATH, relativePath);
+
+  // Security: prevent path traversal
+  if (!targetPath.startsWith(WORKSPACE_PATH)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  try {
+    // Create parent directories if needed
+    const dir = path.dirname(targetPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    fs.writeFileSync(targetPath, content, 'utf-8');
+
+    // Broadcast file change to other clients
+    broadcast({
+      type: 'file_changed',
+      path: relativePath,
+      content,
+      timestamp: new Date().toISOString()
+    });
+
+    res.json({ success: true, path: relativePath });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -145,11 +245,52 @@ const wss = new WebSocket.Server({ server, path: '/ws' });
 // Connected clients with metadata
 const clients = new Map();
 
+// Shared terminal session
+let sharedPty = null;
+
+function createSharedTerminal() {
+  if (sharedPty) {
+    sharedPty.kill();
+  }
+
+  const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash';
+
+  sharedPty = pty.spawn(shell, [], {
+    name: 'xterm-256color',
+    cols: 120,
+    rows: 30,
+    cwd: WORKSPACE_PATH,
+    env: {
+      ...process.env,
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor'
+    }
+  });
+
+  sharedPty.onData((data) => {
+    // Broadcast terminal output to all clients
+    broadcast({
+      type: 'terminal_output',
+      data
+    });
+  });
+
+  sharedPty.onExit(() => {
+    console.log('[PTY] Terminal exited, restarting...');
+    setTimeout(createSharedTerminal, 1000);
+  });
+
+  console.log('[PTY] Shared terminal created');
+}
+
+// Create terminal on startup
+createSharedTerminal();
+
 wss.on('connection', (ws, req) => {
   const clientId = uuidv4();
   const clientInfo = {
     id: clientId,
-    type: 'unknown', // 'human' or 'agent'
+    type: 'unknown',
     name: 'Anonymous',
     connectedAt: new Date().toISOString(),
     ip: req.socket.remoteAddress
@@ -158,7 +299,7 @@ wss.on('connection', (ws, req) => {
   clients.set(ws, clientInfo);
   console.log(`[WS] Client connected: ${clientId}`);
 
-  // Send welcome message with client ID
+  // Send welcome message
   ws.send(JSON.stringify({
     type: 'welcome',
     clientId,
@@ -166,13 +307,13 @@ wss.on('connection', (ws, req) => {
     timestamp: new Date().toISOString()
   }));
 
-  // Broadcast new player to all clients
+  // Broadcast new player
   broadcast({
     type: 'player_joined',
     player: clientInfo
   }, ws);
 
-  // Handle incoming messages
+  // Handle messages
   ws.on('message', (data) => {
     try {
       const message = JSON.parse(data.toString());
@@ -187,7 +328,6 @@ wss.on('connection', (ws, req) => {
     const info = clients.get(ws);
     console.log(`[WS] Client disconnected: ${info?.id}`);
 
-    // Broadcast player left
     broadcast({
       type: 'player_left',
       playerId: info?.id
@@ -210,31 +350,40 @@ function handleMessage(ws, message) {
 
   switch (message.type) {
     case 'identify':
-      // Client identifies as human or agent
       client.type = message.playerType || 'human';
       client.name = message.name || 'Anonymous';
       console.log(`[WS] Client identified: ${client.name} (${client.type})`);
 
-      // Confirm identity
       ws.send(JSON.stringify({
         type: 'identified',
         ...client
       }));
 
-      // Update all clients about player list
       broadcastPlayerList();
       break;
 
     case 'get_players':
-      // Return list of connected players
       ws.send(JSON.stringify({
         type: 'player_list',
         players: Array.from(clients.values())
       }));
       break;
 
+    case 'terminal_input':
+      // Write to shared PTY - all users see output
+      if (sharedPty && message.data) {
+        sharedPty.write(message.data);
+      }
+      break;
+
+    case 'terminal_resize':
+      // Resize shared PTY
+      if (sharedPty && message.cols && message.rows) {
+        sharedPty.resize(message.cols, message.rows);
+      }
+      break;
+
     case 'chat':
-      // Broadcast chat message
       broadcast({
         type: 'chat',
         from: client.id,
@@ -245,12 +394,23 @@ function handleMessage(ws, message) {
       break;
 
     case 'cursor':
-      // Broadcast cursor position (for collaborative editing)
       broadcast({
         type: 'cursor',
         playerId: client.id,
         name: client.name,
-        position: message.position
+        position: message.position,
+        file: message.file
+      }, ws);
+      break;
+
+    case 'file_edit':
+      // Broadcast file edit to other clients
+      broadcast({
+        type: 'file_edit',
+        playerId: client.id,
+        name: client.name,
+        path: message.path,
+        changes: message.changes
       }, ws);
       break;
 
@@ -280,6 +440,54 @@ function broadcastPlayerList() {
 }
 
 // =============================================================================
+// FILE WATCHER
+// =============================================================================
+
+const watcher = chokidar.watch(WORKSPACE_PATH, {
+  ignored: /(^|[\/\\])\../, // ignore dotfiles
+  persistent: true,
+  ignoreInitial: true
+});
+
+watcher.on('change', (filePath) => {
+  const relativePath = path.relative(WORKSPACE_PATH, filePath);
+  console.log(`[WATCH] File changed: ${relativePath}`);
+
+  // Read and broadcast new content
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    broadcast({
+      type: 'file_changed',
+      path: relativePath,
+      content,
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) {
+    console.error('[WATCH] Error reading file:', e.message);
+  }
+});
+
+watcher.on('add', (filePath) => {
+  const relativePath = path.relative(WORKSPACE_PATH, filePath);
+  console.log(`[WATCH] File added: ${relativePath}`);
+  broadcast({
+    type: 'file_added',
+    path: relativePath,
+    timestamp: new Date().toISOString()
+  });
+});
+
+watcher.on('unlink', (filePath) => {
+  const relativePath = path.relative(WORKSPACE_PATH, filePath);
+  console.log(`[WATCH] File deleted: ${relativePath}`);
+  broadcast({
+    type: 'file_deleted',
+    path: relativePath,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// =============================================================================
 // WORKSPACE INITIALIZATION
 // =============================================================================
 
@@ -294,20 +502,38 @@ function initWorkspace() {
   if (!fs.existsSync(welcomePath)) {
     fs.writeFileSync(welcomePath, `# Welcome to Thales Multiplayer Computer
 
-This is your shared workspace. All connected humans and AI agents can see and modify files here.
+This is your shared workspace. All connected humans and AI agents can see and modify files here in real-time.
 
-## Getting Started
+## Features (Phase 1)
 
-1. Open the terminal below to run commands
-2. Edit files in the Monaco editor
-3. Watch other players collaborate in real-time
+- **Shared Terminal**: Every keystroke is shared — all players see the same shell
+- **Monaco Editor**: Full VS Code editing with syntax highlighting
+- **File Explorer**: Browse and edit workspace files
+- **Live Presence**: See who's connected in the sidebar
+- **Real-time Sync**: Changes broadcast instantly via WebSocket
 
-## How It Works
+## Quick Start
 
-- Every change is synced via WebSocket
-- Agents stake tokens to propose changes
-- The local blockchain (Anvil) settles conflicts
-- You always have final approval
+1. Click any file in the explorer to open it
+2. Use the terminal below to run commands
+3. Watch the players panel to see who's online
+
+## Architecture
+
+\`\`\`
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│   Anvil     │  │   Ollama    │  │  Web Server │
+│  (Local EVM)│  │  (Local AI) │  │  (This!)    │
+│  Port 8545  │  │  Port 11434 │  │  Port 3000  │
+└─────────────┘  └─────────────┘  └─────────────┘
+        │                │                │
+        └────────────────┴────────────────┘
+                         │
+                 ┌───────▼───────┐
+                 │ SHARED VOLUME │
+                 │  /workspace   │
+                 └───────────────┘
+\`\`\`
 
 Happy collaborating!
 `);
@@ -323,7 +549,7 @@ initWorkspace();
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log('═'.repeat(60));
-  console.log('  THALES MULTIPLAYER COMPUTER — Phase 0');
+  console.log('  THALES MULTIPLAYER COMPUTER — Phase 1');
   console.log('═'.repeat(60));
   console.log(`  Web Server:    http://localhost:${PORT}`);
   console.log(`  WebSocket:     ws://localhost:${PORT}/ws`);
@@ -333,5 +559,12 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  Workspace:     ${WORKSPACE_PATH}`);
   console.log(`  Anvil RPC:     ${ANVIL_RPC_URL}`);
   console.log(`  Ollama API:    ${OLLAMA_URL}`);
+  console.log('─'.repeat(60));
+  console.log('  Features:');
+  console.log('    ✓ Shared PTY terminal');
+  console.log('    ✓ Monaco code editor');
+  console.log('    ✓ File explorer');
+  console.log('    ✓ Live player presence');
+  console.log('    ✓ Real-time file sync');
   console.log('═'.repeat(60));
 });
