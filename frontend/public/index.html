@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Thales — Multiplayer Computer</title>
+  <title>Thales — Multiplayer Computer (Phase 2)</title>
 
   <!-- xterm.js -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
@@ -444,6 +444,31 @@
     .service-dot.unhealthy { background: var(--error); }
     .service-dot.unknown { background: var(--warning); }
 
+    /* Screen actions */
+    .screen-actions {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .screen-btn {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-align: left;
+    }
+
+    .screen-btn:hover {
+      background: var(--bg-hover);
+      border-color: var(--accent);
+    }
+
     /* ===== WELCOME SCREEN ===== */
     .welcome-screen {
       flex: 1;
@@ -511,7 +536,7 @@
           <span class="logo-icon">🖥️</span>
           <span>Thales</span>
         </div>
-        <span class="phase-badge">Phase 1</span>
+        <span class="phase-badge">Phase 2</span>
       </div>
       <div class="header-center">
         <div class="status-dot" id="status-dot"></div>
@@ -586,13 +611,25 @@
           <div class="service-dot unknown" id="service-ollama"></div>
           <span>Ollama (AI)</span>
         </div>
+        <div class="service-item">
+          <div class="service-dot unknown" id="service-computer-use"></div>
+          <span>Screen (VNC)</span>
+        </div>
+        <div class="screen-actions">
+          <button onclick="openScreenView()" class="screen-btn" title="Open Virtual Desktop">
+            🖥️ Open Desktop
+          </button>
+          <button onclick="takeScreenshot()" class="screen-btn" title="Take Screenshot">
+            📸 Screenshot
+          </button>
+        </div>
       </div>
     </aside>
   </div>
 
   <script>
     // ==========================================================================
-    // THALES CLIENT — Phase 1 Real-time UI
+    // THALES CLIENT — Phase 2 Computer-Use
     // ==========================================================================
 
     // State
@@ -1027,6 +1064,7 @@
 
         updateServiceDot('service-anvil', status.services.anvil);
         updateServiceDot('service-ollama', status.services.ollama);
+        updateServiceDot('service-computer-use', status.services.computerUse);
       } catch (e) {
         console.error('Failed to check services:', e);
       }
@@ -1034,8 +1072,49 @@
 
     function updateServiceDot(id, status) {
       const dot = document.getElementById(id);
+      if (!dot) return;
       dot.className = 'service-dot ' + (status === 'healthy' ? 'healthy' :
                                          status === 'unreachable' ? 'unhealthy' : 'unknown');
+    }
+
+    // ==========================================================================
+    // COMPUTER-USE FUNCTIONS
+    // ==========================================================================
+
+    function openScreenView() {
+      // Open noVNC in a new window
+      window.open('http://localhost:6080/vnc.html?autoconnect=true&resize=scale',
+                  'thales-screen',
+                  'width=1300,height=750');
+    }
+
+    async function takeScreenshot() {
+      try {
+        const res = await fetch('/api/computer/screenshot?format=base64');
+        const data = await res.json();
+
+        if (data.image) {
+          // Create a modal to show the screenshot
+          const modal = document.createElement('div');
+          modal.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8); display: flex;
+            align-items: center; justify-content: center; z-index: 1000;
+            cursor: pointer;
+          `;
+          modal.onclick = () => modal.remove();
+
+          const img = document.createElement('img');
+          img.src = 'data:image/png;base64,' + data.image;
+          img.style.cssText = 'max-width: 90%; max-height: 90%; border-radius: 8px;';
+
+          modal.appendChild(img);
+          document.body.appendChild(modal);
+        }
+      } catch (e) {
+        console.error('Screenshot failed:', e);
+        alert('Screenshot failed. Is the computer-use service running?');
+      }
     }
 
     // ==========================================================================

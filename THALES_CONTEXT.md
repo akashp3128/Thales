@@ -1,7 +1,7 @@
 # THALES CONTEXT — Living Brain Document
 
-> **Last Updated:** Phase 1 — Complete
-> **Status:** 🟢 Phase 1 Done — Ready for Phase 2
+> **Last Updated:** Phase 2 — Complete
+> **Status:** 🟢 Phase 2 Done — Ready for Phase 3
 
 ---
 
@@ -47,6 +47,11 @@
 │   ├── package.json
 │   ├── src/server.js    # Express + WebSocket + PTY server
 │   └── public/index.html # Full collaborative UI
+├── computer-use/        # Virtual desktop with vision & control
+│   ├── Dockerfile       # Xvfb + Fluxbox + noVNC + API
+│   ├── api.py           # Flask REST API for computer control
+│   ├── supervisord.conf # Process manager config
+│   └── startup.sh       # Container entrypoint
 ├── agents/              # AI agent definitions & logic
 ├── contracts/           # Solidity smart contracts
 ├── shared/              # Shared volume mount point
@@ -59,29 +64,30 @@
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    THALES DOCKER STACK                      │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │   ANVIL     │  │   OLLAMA    │  │    WEB SERVER       │  │
-│  │ (Local EVM) │  │  (Local AI) │  │  (WebSocket + PTY)  │  │
-│  │  Port 8545  │  │  Port 11434 │  │     Port 3000       │  │
-│  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘  │
-│         │                │                    │              │
-│         └────────────────┴────────────────────┘              │
-│                          │                                   │
-│                  ┌───────▼───────┐                          │
-│                  │ SHARED VOLUME │                          │
-│                  │  /workspace   │                          │
-│                  └───────────────┘                          │
-└─────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                        THALES DOCKER STACK                            │
+├───────────────────────────────────────────────────────────────────────┤
+│  ┌───────────┐  ┌───────────┐  ┌───────────────┐  ┌────────────────┐  │
+│  │   ANVIL   │  │  OLLAMA   │  │  WEB SERVER   │  │  COMPUTER-USE  │  │
+│  │(Local EVM)│  │ (Local AI)│  │(WebSocket+PTY)│  │ (Vision+Ctrl)  │  │
+│  │ Port 8545 │  │ Port 11434│  │   Port 3000   │  │ Ports 5001,    │  │
+│  │           │  │           │  │               │  │  5900, 6080    │  │
+│  └─────┬─────┘  └─────┬─────┘  └───────┬───────┘  └───────┬────────┘  │
+│        │              │                │                  │           │
+│        └──────────────┴────────────────┴──────────────────┘           │
+│                                │                                      │
+│                        ┌───────▼───────┐                             │
+│                        │ SHARED VOLUME │                             │
+│                        │  /workspace   │                             │
+│                        └───────────────┘                             │
+└───────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│                    WEB UI LAYOUT (Phase 1)                  │
+│                    WEB UI LAYOUT (Phase 2)                  │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │                     HEADER                          │    │
-│  │  🖥️ Thales [Phase 1]    ● Connected    👥 2 online  │    │
+│  │  🖥️ Thales [Phase 2]    ● Connected    👥 2 online  │    │
 │  └─────────────────────────────────────────────────────┘    │
 │  ┌──────────┬─────────────────────────────┬──────────┐      │
 │  │ EXPLORER │         EDITOR              │ PLAYERS  │      │
@@ -93,6 +99,9 @@
 │  │          │  │   xterm.js TERMINAL   │  │ ● Web    │      │
 │  │          │  │   (shared PTY)        │  │ ● Anvil  │      │
 │  │          │  └───────────────────────┘  │ ● Ollama │      │
+│  │          │                             │ ● Screen │      │
+│  │          │                             │[Desktop] │      │
+│  │          │                             │[Screensht│      │
 │  └──────────┴─────────────────────────────┴──────────┘      │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -100,6 +109,54 @@
 ---
 
 ## 🔄 Current Phase
+
+### Phase 2: Computer-Use Layer ✅ COMPLETE
+
+**Objectives:**
+- [x] Add virtual desktop container (Xvfb + Fluxbox)
+- [x] Add VNC server with noVNC web viewer
+- [x] Create REST API for computer control (screenshot, mouse, keyboard)
+- [x] Update docker-compose with computer-use service
+- [x] Integrate screen view into web UI
+- [x] Test all computer-use capabilities — ALL WORKING
+
+**Features Delivered:**
+- **Virtual Desktop**: Xvfb display at 1280x720 with Fluxbox window manager
+- **noVNC Viewer**: Web-based VNC at http://localhost:6080
+- **Screenshot API**: Capture screen as PNG or base64
+- **Mouse Control**: Move, click (left/right/middle), drag, scroll
+- **Keyboard Control**: Type text, press keys, hotkey combinations
+- **Window Management**: List windows, focus by ID or name
+- **Clipboard Access**: Get/set clipboard contents
+- **Command Execution**: Run commands in graphical environment
+- **Pre-installed Apps**: Terminal, Firefox, File Manager, Text Editor
+
+**Computer-Use API Endpoints (Port 5001):**
+- `GET /health` — Health check
+- `GET /screenshot` — Capture full screen
+- `POST /screenshot/region` — Capture specific region
+- `POST /mouse/move` — Move mouse to position
+- `POST /mouse/click` — Click at position
+- `POST /mouse/drag` — Drag from A to B
+- `POST /mouse/scroll` — Scroll up/down
+- `POST /keyboard/type` — Type text string
+- `POST /keyboard/key` — Press single key
+- `POST /keyboard/hotkey` — Press key combination
+- `GET /windows` — List all windows
+- `POST /window/focus` — Focus window
+- `GET /clipboard` — Get clipboard
+- `POST /clipboard` — Set clipboard
+- `POST /exec` — Execute shell command
+- `GET /display` — Get display info
+
+**Web UI Proxy Endpoints:**
+- `GET /api/computer/screenshot` — Proxy to screenshot API
+- `POST /api/computer/mouse/*` — Proxy to mouse APIs
+- `POST /api/computer/keyboard/*` — Proxy to keyboard APIs
+- `POST /api/computer/exec` — Proxy to exec API
+- `GET /api/computer/display` — Proxy to display API
+
+---
 
 ### Phase 1: Real-time Web UI ✅ COMPLETE
 
@@ -163,17 +220,36 @@ cd ~/Thales && docker-compose up -d
 # Open UI in browser
 open http://localhost:3000
 
+# Open noVNC desktop viewer
+open http://localhost:6080/vnc.html?autoconnect=true
+
 # Check status
 docker-compose ps
 
 # View logs
 docker-compose logs -f thales-web
+docker-compose logs -f thales-computer-use
 
 # Test API
 curl http://localhost:3000/api/status | jq
 
 # Test file listing
 curl http://localhost:3000/api/files | jq
+
+# Test computer-use API
+curl http://localhost:5001/health | jq
+curl -s 'http://localhost:5001/screenshot?format=base64' | jq '.format'
+
+# Test mouse control
+curl -X POST http://localhost:5001/mouse/move -H 'Content-Type: application/json' -d '{"x": 640, "y": 360}'
+curl -X POST http://localhost:5001/mouse/click -H 'Content-Type: application/json' -d '{"button": 1}'
+
+# Test keyboard control
+curl -X POST http://localhost:5001/keyboard/type -H 'Content-Type: application/json' -d '{"text": "hello"}'
+curl -X POST http://localhost:5001/keyboard/key -H 'Content-Type: application/json' -d '{"key": "Return"}'
+
+# Open app in virtual desktop
+curl -X POST http://localhost:5001/exec -H 'Content-Type: application/json' -d '{"command": "firefox &"}'
 
 # Stop Thales
 docker-compose down
@@ -195,6 +271,12 @@ docker-compose down -v && docker-compose up -d --build
 | Phase 1 | Monaco via CDN | Avoid bundling, fast load |
 | Phase 1 | xterm.js via CDN | Industry standard terminal emulator |
 | Phase 1 | chokidar for file watch | Cross-platform, efficient |
+| Phase 2 | Xvfb for display | Headless, no GPU required |
+| Phase 2 | Fluxbox for WM | Lightweight, minimal resources |
+| Phase 2 | noVNC for web viewer | Browser-based, no client install |
+| Phase 2 | xdotool for control | Standard X11 automation tool |
+| Phase 2 | Flask for API | Simple, Python native, easy to extend |
+| Phase 2 | Port 5001 for API | Port 5000 used by AirPlay on macOS |
 
 ---
 
@@ -228,7 +310,7 @@ cd ~/Thales && docker-compose down -v && git reset --hard HEAD~1
 |-------|------|--------|
 | 0 | Git + Docker Base | ✅ Complete |
 | 1 | Real-time Web UI | ✅ Complete |
-| 2 | Computer-Use Layer | ⚪ Not Started |
+| 2 | Computer-Use Layer | ✅ Complete |
 | 3 | Ollama Multi-Agent Loop | ⚪ Not Started |
 | 4 | Solidity Contracts | ⚪ Not Started |
 | 5 | Token Economy | ⚪ Not Started |

@@ -2,9 +2,10 @@
 # THALES — Multiplayer Computer Docker Stack
 # =============================================================================
 # Services:
-#   - anvil:   Local EVM blockchain for staking/settlement
-#   - ollama:  Local LLM inference (mistral, codellama)
-#   - web:     WebSocket + HTTP server for real-time collaboration
+#   - anvil:        Local EVM blockchain for staking/settlement
+#   - ollama:       Local LLM inference (mistral, codellama)
+#   - web:          WebSocket + HTTP server for real-time collaboration
+#   - computer-use: Virtual desktop with screen vision & control APIs
 # =============================================================================
 
 services:
@@ -83,6 +84,7 @@ services:
       - WORKSPACE_PATH=/workspace
       - ANVIL_RPC_URL=http://anvil:8545
       - OLLAMA_URL=http://ollama:11434
+      - COMPUTER_USE_URL=http://computer-use:5001
     depends_on:
       anvil:
         condition: service_healthy
@@ -93,6 +95,40 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # COMPUTER-USE — Virtual Desktop with Vision & Control
+  # ---------------------------------------------------------------------------
+  # Provides:
+  #   - Xvfb virtual display (1280x720)
+  #   - Fluxbox window manager
+  #   - x11vnc + noVNC for web-based viewing
+  #   - REST API for screenshot, mouse, keyboard control
+  #   - Firefox, file manager, text editor for testing
+  # ---------------------------------------------------------------------------
+  computer-use:
+    build:
+      context: ./computer-use
+      dockerfile: Dockerfile
+    container_name: thales-computer-use
+    ports:
+      - "5900:5900"   # VNC
+      - "6080:6080"   # noVNC web viewer
+      - "5001:5001"   # Control API (5000 used by AirPlay on macOS)
+    volumes:
+      - ./shared:/workspace:rw
+    networks:
+      - thales-network
+    environment:
+      - DISPLAY=:99
+      - RESOLUTION=1280x720x24
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
 # =============================================================================

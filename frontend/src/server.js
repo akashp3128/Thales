@@ -31,6 +31,7 @@ const PORT = process.env.PORT || 3000;
 const WORKSPACE_PATH = process.env.WORKSPACE_PATH || '/workspace';
 const ANVIL_RPC_URL = process.env.ANVIL_RPC_URL || 'http://anvil:8545';
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://ollama:11434';
+const COMPUTER_USE_URL = process.env.COMPUTER_USE_URL || 'http://computer-use:5001';
 
 // =============================================================================
 // EXPRESS APP SETUP
@@ -51,12 +52,13 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'thales-web',
-    phase: 1,
+    phase: 2,
     timestamp: new Date().toISOString(),
     workspace: WORKSPACE_PATH,
     connections: {
       anvil: ANVIL_RPC_URL,
-      ollama: OLLAMA_URL
+      ollama: OLLAMA_URL,
+      computerUse: COMPUTER_USE_URL
     }
   });
 });
@@ -68,12 +70,13 @@ app.get('/health', (req, res) => {
 app.get('/api/status', async (req, res) => {
   const status = {
     thales: 'running',
-    version: '0.2.0',
-    phase: 1,
+    version: '0.3.0',
+    phase: 2,
     services: {
       web: 'healthy',
       anvil: 'unknown',
-      ollama: 'unknown'
+      ollama: 'unknown',
+      computerUse: 'unknown'
     },
     workspace: {
       path: WORKSPACE_PATH,
@@ -101,6 +104,14 @@ app.get('/api/status', async (req, res) => {
     if (ollamaRes.ok) status.services.ollama = 'healthy';
   } catch (e) {
     status.services.ollama = 'unreachable';
+  }
+
+  // Check Computer-Use
+  try {
+    const cuRes = await fetch(`${COMPUTER_USE_URL}/health`);
+    if (cuRes.ok) status.services.computerUse = 'healthy';
+  } catch (e) {
+    status.services.computerUse = 'unreachable';
   }
 
   res.json(status);
@@ -231,6 +242,108 @@ app.put('/api/file', (req, res) => {
     });
 
     res.json({ success: true, path: relativePath });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =============================================================================
+// COMPUTER-USE API PROXY
+// =============================================================================
+
+// Screenshot endpoint
+app.get('/api/computer/screenshot', async (req, res) => {
+  try {
+    const format = req.query.format || 'base64';
+    const cuRes = await fetch(`${COMPUTER_USE_URL}/screenshot?format=${format}`);
+    const data = await cuRes.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Mouse move
+app.post('/api/computer/mouse/move', async (req, res) => {
+  try {
+    const cuRes = await fetch(`${COMPUTER_USE_URL}/mouse/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await cuRes.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Mouse click
+app.post('/api/computer/mouse/click', async (req, res) => {
+  try {
+    const cuRes = await fetch(`${COMPUTER_USE_URL}/mouse/click`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await cuRes.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Keyboard type
+app.post('/api/computer/keyboard/type', async (req, res) => {
+  try {
+    const cuRes = await fetch(`${COMPUTER_USE_URL}/keyboard/type`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await cuRes.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Keyboard key
+app.post('/api/computer/keyboard/key', async (req, res) => {
+  try {
+    const cuRes = await fetch(`${COMPUTER_USE_URL}/keyboard/key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await cuRes.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Execute command in GUI environment
+app.post('/api/computer/exec', async (req, res) => {
+  try {
+    const cuRes = await fetch(`${COMPUTER_USE_URL}/exec`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await cuRes.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Display info
+app.get('/api/computer/display', async (req, res) => {
+  try {
+    const cuRes = await fetch(`${COMPUTER_USE_URL}/display`);
+    const data = await cuRes.json();
+    res.json(data);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
