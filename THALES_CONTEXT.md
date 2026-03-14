@@ -1,7 +1,7 @@
 # THALES CONTEXT — Living Brain Document
 
-> **Last Updated:** Phase 2 — Complete
-> **Status:** 🟢 Phase 2 Done — Ready for Phase 3
+> **Last Updated:** Phase 3 — Complete
+> **Status:** 🟢 Phase 3 Done — Ready for Phase 4
 
 ---
 
@@ -25,11 +25,19 @@
 
 ## 🤖 Model Choices (Based on 18GB RAM)
 
+### Host System Models (Local Ollama)
+| Role | Model | Size | Reason |
+|------|-------|------|--------|
+| **Proposer** | `qwen3:14b` | 9.3 GB | Large, strong reasoning |
+| **Critic** | `qwen3:8b` | 5.2 GB | Fast critique/review |
+| **Verifier** | `qwen2.5-coder:7b` | 4.7 GB | Code-focused verification |
+| **Vision** | `llava:7b` | 4.7 GB | Screenshot analysis |
+
+### Docker Models (For testing)
 | Role | Model | Reason |
 |------|-------|--------|
 | **General Agent** | `mistral:7b-instruct-v0.3-q4_K_M` | Fast, good instruction following |
 | **Code Agent** | `codellama:7b-code-q4_K_M` | Optimized for code completion |
-| **Verifier Agent** | `mistral:7b-instruct-v0.3-q4_K_M` | Verification/review tasks |
 
 *With 18GB RAM, running 1-2 models concurrently is safe. 7B quantized models use ~4-6GB each.*
 
@@ -109,6 +117,32 @@
 ---
 
 ## 🔄 Current Phase
+
+### Phase 3: Multi-Agent Verification Loop ✅ COMPLETE
+
+**Objectives:**
+- [x] Pull modern Ollama models (qwen3:14b, qwen3:8b, qwen2.5-coder:7b, llava:7b)
+- [x] Create agent library with Proposer, Critic, Verifier roles
+- [x] Build VerificationLoop orchestration class
+- [x] Add agent API endpoints to web server
+- [x] Create agents panel frontend UI
+- [x] Test end-to-end verification loop
+
+**Features Delivered:**
+- **Agent Library** (`agents/lib/`): Core Agent class, OllamaClient, AgentRegistry
+- **Specialized Agents**: ProposerAgent, CriticAgent, VerifierAgent with role-specific prompts
+- **VerificationLoop**: Orchestrates proposer→critic→verifier pipeline
+- **REST API** (`/api/agents/*`): Health, models, verify, query, registry endpoints
+- **Frontend Panel** (`/agents.html`): Status, agent cards, task input, result display
+
+**Agent API Endpoints:**
+- `GET /api/agents/health` — System health check with model list
+- `GET /api/agents/models` — List available Ollama models
+- `POST /api/agents/verify` — Run full verification loop
+- `POST /api/agents/query` — Single agent query
+- `GET /api/agents/registry` — List registered agents
+
+---
 
 ### Phase 2: Computer-Use Layer ✅ COMPLETE
 
@@ -311,7 +345,7 @@ cd ~/Thales && docker-compose down -v && git reset --hard HEAD~1
 | 0 | Git + Docker Base | ✅ Complete |
 | 1 | Real-time Web UI | ✅ Complete |
 | 2 | Computer-Use Layer | ✅ Complete |
-| 3 | Ollama Multi-Agent Loop | ⚪ Not Started |
+| 3 | Ollama Multi-Agent Loop | ✅ Complete |
 | 4 | Solidity Contracts | ⚪ Not Started |
 | 5 | Token Economy | ⚪ Not Started |
 | 6 | Polish & Safety | ⚪ Not Started |

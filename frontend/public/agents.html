@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thales - Agent Verification Panel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { color: #00d4ff; margin-bottom: 20px; }
+    .panel {
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid #2a2a4e;
+    }
+    .panel h2 { color: #00d4ff; margin-bottom: 15px; font-size: 1.2em; }
+    .status { display: flex; gap: 20px; flex-wrap: wrap; }
+    .status-item {
+      background: #252545;
+      padding: 15px 20px;
+      border-radius: 8px;
+      min-width: 150px;
+    }
+    .status-item label { color: #888; font-size: 0.85em; display: block; }
+    .status-item span { color: #00d4ff; font-size: 1.1em; font-weight: 600; }
+    .status-item.ok span { color: #00ff88; }
+    .status-item.error span { color: #ff4466; }
+    textarea {
+      width: 100%;
+      background: #252545;
+      border: 1px solid #3a3a6e;
+      border-radius: 8px;
+      padding: 15px;
+      color: #e0e0e0;
+      font-family: inherit;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 100px;
+    }
+    textarea:focus { outline: none; border-color: #00d4ff; }
+    button {
+      background: linear-gradient(135deg, #00d4ff, #0088ff);
+      border: none;
+      padding: 12px 30px;
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 15px;
+      transition: transform 0.2s;
+    }
+    button:hover { transform: scale(1.02); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .agents-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+    .agent-card {
+      background: #252545;
+      border-radius: 8px;
+      padding: 15px;
+      text-align: center;
+    }
+    .agent-card h3 { color: #00d4ff; margin-bottom: 10px; }
+    .agent-card .role { color: #888; font-size: 0.9em; }
+    .agent-card .model { color: #00ff88; font-family: monospace; margin-top: 5px; }
+    .result {
+      background: #151525;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 15px;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 13px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .result.verified { border-left: 4px solid #00ff88; }
+    .result.rejected { border-left: 4px solid #ff4466; }
+    .history-item {
+      background: #1e1e35;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 6px;
+    }
+    .history-item .round { color: #00d4ff; font-weight: 600; }
+    .loader { display: inline-block; width: 20px; height: 20px; border: 2px solid #00d4ff; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 768px) { .agents-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🤖 Thales Agent Verification Panel</h1>
+
+    <!-- System Status -->
+    <div class="panel">
+      <h2>System Status</h2>
+      <div class="status" id="status">
+        <div class="status-item" id="ollama-status">
+          <label>Ollama</label>
+          <span>Checking...</span>
+        </div>
+        <div class="status-item" id="models-count">
+          <label>Models</label>
+          <span>-</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agents -->
+    <div class="panel">
+      <h2>Active Agents</h2>
+      <div class="agents-grid" id="agents-grid">
+        <div class="agent-card">
+          <h3>🎯 Proposer</h3>
+          <div class="role">Generates initial proposals</div>
+          <div class="model" id="proposer-model">qwen3:14b</div>
+        </div>
+        <div class="agent-card">
+          <h3>🔍 Critic</h3>
+          <div class="role">Reviews & critiques</div>
+          <div class="model" id="critic-model">qwen3:8b</div>
+        </div>
+        <div class="agent-card">
+          <h3>✅ Verifier</h3>
+          <div class="role">Final verification</div>
+          <div class="model" id="verifier-model">qwen2.5-coder:7b</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Verification Task -->
+    <div class="panel">
+      <h2>Run Verification Loop</h2>
+      <textarea id="task-input" placeholder="Enter a task for the verification loop...
+Example: Write a Python function to calculate Fibonacci numbers"></textarea>
+      <textarea id="context-input" placeholder="Optional context..." style="min-height: 60px; margin-top: 10px;"></textarea>
+      <button id="run-btn" onclick="runVerification()">🚀 Run Verification</button>
+
+      <div id="result-container" style="display: none;">
+        <div class="result" id="result"></div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="panel" id="history-panel" style="display: none;">
+      <h2>Verification History</h2>
+      <div id="history"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/api/agents/health`);
+        const data = await res.json();
+
+        const ollamaEl = document.getElementById('ollama-status');
+        const modelsEl = document.getElementById('models-count');
+
+        if (data.status === 'ok') {
+          ollamaEl.classList.add('ok');
+          ollamaEl.querySelector('span').textContent = 'Connected';
+          modelsEl.querySelector('span').textContent = data.models?.length || 0;
+
+          // Update model names if configured
+          if (data.configured) {
+            document.getElementById('proposer-model').textContent = data.configured.proposer;
+            document.getElementById('critic-model').textContent = data.configured.critic;
+            document.getElementById('verifier-model').textContent = data.configured.verifier;
+          }
+        } else {
+          ollamaEl.classList.add('error');
+          ollamaEl.querySelector('span').textContent = 'Error';
+        }
+      } catch (e) {
+        document.getElementById('ollama-status').classList.add('error');
+        document.getElementById('ollama-status').querySelector('span').textContent = 'Offline';
+      }
+    }
+
+    async function runVerification() {
+      const task = document.getElementById('task-input').value.trim();
+      const context = document.getElementById('context-input').value.trim();
+      const btn = document.getElementById('run-btn');
+      const resultContainer = document.getElementById('result-container');
+      const resultEl = document.getElementById('result');
+
+      if (!task) {
+        alert('Please enter a task');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loader"></span>Running...';
+      resultContainer.style.display = 'block';
+      resultEl.textContent = 'Starting verification loop...\n';
+      resultEl.className = 'result';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/agents/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task, context, maxRounds: 3 })
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+          resultEl.textContent = `Error: ${data.error}`;
+          resultEl.classList.add('rejected');
+        } else {
+          resultEl.classList.add(data.status === 'VERIFIED' ? 'verified' : 'rejected');
+          resultEl.textContent = formatResult(data);
+
+          // Show history
+          if (data.history?.length) {
+            showHistory(data.history);
+          }
+        }
+      } catch (e) {
+        resultEl.textContent = `Error: ${e.message}`;
+        resultEl.classList.add('rejected');
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = '🚀 Run Verification';
+    }
+
+    function formatResult(data) {
+      return `=== VERIFICATION RESULT ===
+Status: ${data.status}
+Rounds: ${data.rounds}
+
+--- FINAL PROPOSAL ---
+${data.proposal || 'N/A'}
+
+--- CRITIQUE ---
+${data.critique || 'N/A'}
+
+--- VERIFICATION ---
+${data.verification || 'N/A'}`;
+    }
+
+    function showHistory(history) {
+      const panel = document.getElementById('history-panel');
+      const container = document.getElementById('history');
+      panel.style.display = 'block';
+      container.innerHTML = history.map((h, i) => `
+        <div class="history-item">
+          <span class="round">Round ${i + 1}</span>
+          <pre>${JSON.stringify(h, null, 2)}</pre>
+        </div>
+      `).join('');
+    }
+
+    // Initialize
+    checkHealth();
+    setInterval(checkHealth, 30000);
+  </script>
+</body>
+</html>

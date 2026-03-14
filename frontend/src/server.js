@@ -23,6 +23,14 @@ const { v4: uuidv4 } = require('uuid');
 const pty = require('node-pty');
 const chokidar = require('chokidar');
 
+// Agent API (Phase 3)
+let agentApi = null;
+try {
+  agentApi = require('../../agents/api');
+} catch (e) {
+  console.log('[Server] Agent API not available:', e.message);
+}
+
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
@@ -43,6 +51,12 @@ const server = http.createServer(app);
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
+
+// Register Agent API routes (Phase 3)
+if (agentApi && agentApi.registerAgentRoutes) {
+  agentApi.registerAgentRoutes(app);
+  console.log('[Server] Agent API routes registered');
+}
 
 // =============================================================================
 // HEALTH CHECK ENDPOINT

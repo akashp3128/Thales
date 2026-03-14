@@ -1,0 +1,12 @@
+{
+  "name": "thales-agents",
+  "version": "1.0.0",
+  "description": "Thales Multi-Agent Verification System",
+  "main": "lib/index.js",
+  "scripts": {
+    "test": "node test-loop.js"
+  },
+  "dependencies": {
+    "uuid": "^9.0.0"
+  }
+}
