@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thales — Multiplayer Computer</title>
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #21262d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --error: #f85149;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 800px;
+      width: 100%;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .logo {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 1.2rem;
+    }
+
+    .status-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-tertiary);
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .status-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .status-indicator.error {
+      background: var(--error);
+    }
+
+    .status-indicator.warning {
+      background: var(--warning);
+    }
+
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 500;
+    }
+
+    .services {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .service {
+      background: var(--bg-tertiary);
+      padding: 1rem;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .service-name {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+    }
+
+    .service-status {
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .service-status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .service-status.healthy .dot { background: var(--success); }
+    .service-status.unhealthy .dot { background: var(--error); }
+    .service-status.unknown .dot { background: var(--warning); }
+
+    .players-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-tertiary);
+      border-radius: 12px;
+      padding: 2rem;
+    }
+
+    .players-header {
+      margin-bottom: 1rem;
+    }
+
+    .player-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .player {
+      background: var(--bg-tertiary);
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .player .avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+    }
+
+    .player.agent .avatar {
+      background: var(--success);
+    }
+
+    .phase-badge {
+      display: inline-block;
+      background: var(--accent);
+      color: var(--bg-primary);
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-top: 1rem;
+    }
+
+    .info {
+      margin-top: 2rem;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .info code {
+      background: var(--bg-tertiary);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">🖥️</div>
+      <h1>Thales</h1>
+      <p class="subtitle">Multiplayer Computer</p>
+      <span class="phase-badge">Phase 0 — Foundation</span>
+    </div>
+
+    <div class="status-card">
+      <div class="status-header">
+        <div class="status-indicator" id="main-indicator"></div>
+        <h2>System Status</h2>
+      </div>
+      <div class="services">
+        <div class="service">
+          <div class="service-name">Web Server</div>
+          <div class="service-status healthy" id="status-web">
+            <span class="dot"></span> Healthy
+          </div>
+        </div>
+        <div class="service">
+          <div class="service-name">Anvil (EVM)</div>
+          <div class="service-status unknown" id="status-anvil">
+            <span class="dot"></span> Checking...
+          </div>
+        </div>
+        <div class="service">
+          <div class="service-name">Ollama (AI)</div>
+          <div class="service-status unknown" id="status-ollama">
+            <span class="dot"></span> Checking...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="players-card">
+      <div class="players-header">
+        <h2>🎮 Connected Players (<span id="player-count">0</span>)</h2>
+      </div>
+      <div class="player-list" id="player-list">
+        <div class="player">
+          <span class="avatar">👤</span>
+          <span>Waiting for connections...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="info">
+      <p>WebSocket: <code>ws://localhost:3000/ws</code></p>
+      <p style="margin-top: 0.5rem;">Full UI coming in Phase 1</p>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================================================
+    // THALES CLIENT — Phase 0 Basic Connection
+    // ==========================================================================
+
+    let ws = null;
+    let clientId = null;
+    let players = [];
+
+    // Connect to WebSocket
+    function connect() {
+      ws = new WebSocket(`ws://${window.location.host}/ws`);
+
+      ws.onopen = () => {
+        console.log('[Thales] Connected to server');
+        // Identify as human
+        ws.send(JSON.stringify({
+          type: 'identify',
+          playerType: 'human',
+          name: 'Browser User'
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        handleMessage(msg);
+      };
+
+      ws.onclose = () => {
+        console.log('[Thales] Disconnected, reconnecting in 2s...');
+        setTimeout(connect, 2000);
+      };
+
+      ws.onerror = (err) => {
+        console.error('[Thales] WebSocket error:', err);
+      };
+    }
+
+    function handleMessage(msg) {
+      console.log('[Thales] Message:', msg.type, msg);
+
+      switch (msg.type) {
+        case 'welcome':
+          clientId = msg.clientId;
+          console.log('[Thales] Assigned ID:', clientId);
+          break;
+
+        case 'player_list':
+          players = msg.players;
+          updatePlayerList();
+          break;
+
+        case 'player_joined':
+          players.push(msg.player);
+          updatePlayerList();
+          break;
+
+        case 'player_left':
+          players = players.filter(p => p.id !== msg.playerId);
+          updatePlayerList();
+          break;
+      }
+    }
+
+    function updatePlayerList() {
+      const list = document.getElementById('player-list');
+      const count = document.getElementById('player-count');
+
+      count.textContent = players.length;
+
+      if (players.length === 0) {
+        list.innerHTML = '<div class="player"><span class="avatar">👤</span><span>No players connected</span></div>';
+        return;
+      }
+
+      list.innerHTML = players.map(p => `
+        <div class="player ${p.type === 'agent' ? 'agent' : ''}">
+          <span class="avatar">${p.type === 'agent' ? '🤖' : '👤'}</span>
+          <span>${p.name} ${p.id === clientId ? '(you)' : ''}</span>
+        </div>
+      `).join('');
+    }
+
+    // Fetch system status
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const status = await res.json();
+
+        // Update indicators
+        updateService('anvil', status.services.anvil);
+        updateService('ollama', status.services.ollama);
+
+        // Update main indicator
+        const indicator = document.getElementById('main-indicator');
+        const allHealthy = status.services.anvil === 'healthy' && status.services.ollama === 'healthy';
+        indicator.className = `status-indicator ${allHealthy ? '' : 'warning'}`;
+
+      } catch (e) {
+        console.error('[Thales] Status fetch failed:', e);
+      }
+    }
+
+    function updateService(name, status) {
+      const el = document.getElementById(`status-${name}`);
+      el.className = `service-status ${status === 'healthy' ? 'healthy' : status === 'unreachable' ? 'unhealthy' : 'unknown'}`;
+      el.innerHTML = `<span class="dot"></span> ${status.charAt(0).toUpperCase() + status.slice(1)}`;
+    }
+
+    // Initialize
+    connect();
+    fetchStatus();
+    setInterval(fetchStatus, 5000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+*.local
+
+# Docker
+docker-compose.override.yml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Logs
+*.log
+logs/
+
+# Blockchain artifacts (local only)
+anvil-data/
+deployments/
+
+# Ollama models (downloaded separately)
+ollama-models/
+
+# Shared workspace runtime data (ephemeral)
+shared/workspace/
+
+# Temporary files
+tmp/
+*.tmp
