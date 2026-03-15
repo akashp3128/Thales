@@ -9,23 +9,21 @@ const {
   ProposerAgent,
   CriticAgent,
   VerifierAgent,
-  VerificationLoop,
-  AgentRegistry
+  VerificationLoop
 } = require('./lib');
 
-// Configuration
+// Configuration - use Docker-available models by default
 const MODELS = {
-  proposer: process.env.PROPOSER_MODEL || 'qwen3:14b',
-  critic: process.env.CRITIC_MODEL || 'qwen3:8b',
-  verifier: process.env.VERIFIER_MODEL || 'qwen2.5-coder:7b'
+  proposer: process.env.PROPOSER_MODEL || 'mistral:7b-instruct-v0.3-q4_K_M',
+  critic: process.env.CRITIC_MODEL || 'mistral:7b-instruct-v0.3-q4_K_M',
+  verifier: process.env.VERIFIER_MODEL || 'codellama:7b-code-q4_K_M'
 };
 
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://ollama:11434';
 
 // Singleton instances
-let ollamaClient = null;
-let registry = null;
 let verificationLoop = null;
+let agents = [];
 
 /**
  * Initialize the agent system
@@ -33,21 +31,23 @@ let verificationLoop = null;
 async function initializeAgents() {
   if (verificationLoop) return verificationLoop;
 
-  ollamaClient = new OllamaClient(OLLAMA_URL);
-  registry = new AgentRegistry();
+  // Set env for OllamaClient
+  process.env.OLLAMA_URL = OLLAMA_URL;
 
-  // Create specialized agents
-  const proposer = new ProposerAgent('proposer-1', ollamaClient, MODELS.proposer);
-  const critic = new CriticAgent('critic-1', ollamaClient, MODELS.critic);
-  const verifier = new VerifierAgent('verifier-1', ollamaClient, MODELS.verifier);
+  // Create specialized agents with options objects
+  const proposer = new ProposerAgent({ id: 'proposer-1', model: MODELS.proposer });
+  const critic = new CriticAgent({ id: 'critic-1', model: MODELS.critic });
+  const verifier = new VerifierAgent({ id: 'verifier-1', model: MODELS.verifier });
 
-  // Register agents
-  registry.register(proposer);
-  registry.register(critic);
-  registry.register(verifier);
+  agents = [proposer, critic, verifier];
 
-  // Create verification loop
-  verificationLoop = new VerificationLoop(proposer, critic, verifier);
+  // Create verification loop with options object
+  verificationLoop = new VerificationLoop({
+    proposer,
+    critic,
+    verifier,
+    onProgress: (event) => console.log('[Agents] Progress:', event.stage || event.type)
+  });
 
   console.log('[Agents] Initialized with models:', MODELS);
   return verificationLoop;
@@ -61,7 +61,7 @@ function registerAgentRoutes(app) {
   // Health check for agent system
   app.get('/api/agents/health', async (req, res) => {
     try {
-      const client = new OllamaClient(OLLAMA_URL);
+      const client = new OllamaClient({ baseUrl: OLLAMA_URL });
       const models = await client.listModels();
       res.json({
         status: 'ok',
@@ -80,7 +80,7 @@ function registerAgentRoutes(app) {
   // List available models
   app.get('/api/agents/models', async (req, res) => {
     try {
-      const client = new OllamaClient(OLLAMA_URL);
+      const client = new OllamaClient({ baseUrl: OLLAMA_URL });
       const models = await client.listModels();
       res.json({ models });
     } catch (error) {
@@ -98,15 +98,17 @@ function registerAgentRoutes(app) {
       }
 
       const loop = await initializeAgents();
-      const result = await loop.run(task, context || '', maxRounds || 3);
+      const result = await loop.verify(task, context || {});
 
       res.json({
-        status: result.status,
+        success: result.success,
+        status: result.decision || result.status,
         proposal: result.proposal,
         critique: result.critique,
         verification: result.verification,
-        rounds: result.rounds,
-        history: result.history
+        failedStage: result.failedStage,
+        error: result.error,
+        durationMs: result.durationMs
       });
     } catch (error) {
       console.error('[Agents] Verification error:', error);
@@ -123,16 +125,17 @@ function registerAgentRoutes(app) {
         return res.status(400).json({ error: 'prompt is required' });
       }
 
-      const client = new OllamaClient(OLLAMA_URL);
+      const client = new OllamaClient({ baseUrl: OLLAMA_URL });
       const selectedModel = model || MODELS.proposer;
 
-      const response = await client.generate(selectedModel, prompt, {
+      const response = await client.generate(prompt, {
+        model: selectedModel,
         system: role || 'You are a helpful AI assistant.'
       });
 
       res.json({
         model: selectedModel,
-        response: response
+        response: response.text
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -143,10 +146,10 @@ function registerAgentRoutes(app) {
   app.get('/api/agents/registry', async (req, res) => {
     try {
       await initializeAgents();
-      const agents = registry.listAll();
       res.json({
         agents: agents.map(a => ({
           id: a.id,
+          name: a.name,
           role: a.role,
           state: a.state,
           model: a.model

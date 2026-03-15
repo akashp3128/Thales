@@ -26,9 +26,14 @@ const chokidar = require('chokidar');
 // Agent API (Phase 3)
 let agentApi = null;
 try {
-  agentApi = require('../../agents/api');
+  // Try Docker path first, then relative path
+  agentApi = require('/app/agents/api');
 } catch (e) {
-  console.log('[Server] Agent API not available:', e.message);
+  try {
+    agentApi = require('../../agents/api');
+  } catch (e2) {
+    console.log('[Server] Agent API not available:', e.message);
+  }
 }
 
 // =============================================================================

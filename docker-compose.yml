@@ -77,6 +77,7 @@ services:
     volumes:
       - ./shared:/workspace:rw
       - ./frontend/src:/app/src:ro
+      - ./agents:/app/agents:ro
     networks:
       - thales-network
     environment:
