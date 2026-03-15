@@ -14,6 +14,11 @@ const {
   VerificationLoop
 } = require('./specialized-agents');
 
+// Phase 4 additions
+const { ExecutorAgent } = require('./executor');
+const { EthereumClient } = require('./ethereum-client');
+const { ExecutionPipeline } = require('./execution-pipeline');
+
 module.exports = {
   // Core
   Agent,
@@ -24,5 +29,9 @@ module.exports = {
   ProposerAgent,
   CriticAgent,
   VerifierAgent,
-  VerificationLoop
+  VerificationLoop,
+  // Phase 4: Execution
+  ExecutorAgent,
+  EthereumClient,
+  ExecutionPipeline
 };

@@ -1,7 +1,7 @@
 # THALES CONTEXT — Living Brain Document
 
-> **Last Updated:** Phase 3 — Complete
-> **Status:** 🟢 Phase 3 Done — Ready for Phase 4
+> **Last Updated:** Phase 4 — Complete
+> **Status:** 🟢 Phase 4 Done — Ready for Phase 5
 
 ---
 
@@ -117,6 +117,39 @@
 ---
 
 ## 🔄 Current Phase
+
+### Phase 4: Execution Pipeline + Solidity Contracts ✅ COMPLETE
+
+**Objectives:**
+- [x] Create Solidity contracts (ThalesToken, ActionRegistry, StakeManager)
+- [x] Deploy contracts to local Anvil chain
+- [x] Create ExecutorAgent to parse and run verified proposals
+- [x] Create EthereumClient for blockchain interaction
+- [x] Build ExecutionPipeline: verify→stake→execute→record→settle
+- [x] Add API endpoints for execution and contracts
+- [x] Test end-to-end execution with on-chain recording
+
+**Solidity Contracts Deployed:**
+- **ThalesToken** (`0x5FbDB2315678afecb367f032d93F642f64180aa3`): ERC-20 staking token
+- **ActionRegistry** (`0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512`): On-chain action log
+- **StakeManager** (`0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0`): Stake/slash logic
+
+**New API Endpoints:**
+- `POST /api/execute` — Full pipeline (verify→stake→execute→record)
+- `GET /api/execute/history` — Execution history and stats
+- `GET /api/contracts/status` — Contract addresses and health
+- `GET /api/contracts/balance/:addr` — Token balance
+- `POST /api/contracts/faucet` — Claim 1000 THALES
+- `GET /api/contracts/proposals` — List on-chain proposals
+- `GET /api/stake/required/:risk` — Required stake (10/50/100 THALES)
+
+**Execution Flow:**
+```
+Task → Verify → Register on-chain → Stake tokens → Execute actions →
+Record result → Release stake (success) or Slash 50% (failure)
+```
+
+---
 
 ### Phase 3: Multi-Agent Verification Loop ✅ COMPLETE
 
@@ -346,6 +379,6 @@ cd ~/Thales && docker-compose down -v && git reset --hard HEAD~1
 | 1 | Real-time Web UI | ✅ Complete |
 | 2 | Computer-Use Layer | ✅ Complete |
 | 3 | Ollama Multi-Agent Loop | ✅ Complete |
-| 4 | Solidity Contracts | ⚪ Not Started |
-| 5 | Token Economy | ⚪ Not Started |
+| 4 | Execution Pipeline + Contracts | ✅ Complete |
+| 5 | Token Economy & Rewards | ⚪ Not Started |
 | 6 | Polish & Safety | ⚪ Not Started |

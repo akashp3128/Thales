@@ -11,7 +11,7 @@ class OllamaClient {
     const defaultUrl = process.env.OLLAMA_URL || 'http://ollama:11434';
     this.baseUrl = options.baseUrl || defaultUrl;
     this.defaultModel = options.model || 'mistral:7b-instruct-v0.3-q4_K_M';
-    this.timeout = options.timeout || 120000;
+    this.timeout = options.timeout || 300000; // 5 minutes for complex prompts
   }
 
   /**

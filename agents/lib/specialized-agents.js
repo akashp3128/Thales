@@ -17,26 +17,10 @@ class ProposerAgent extends Agent {
       ...options,
       name: options.name || 'Proposer',
       role: 'proposer',
-      systemPrompt: `You are a Proposer Agent in Thales, a collaborative multiplayer computer.
+      systemPrompt: `You are a Proposer. Analyze tasks and create action proposals.
 
-Your job is to analyze tasks and generate structured PROPOSALS for actions.
-Each proposal must be concrete, actionable, and include clear success criteria.
-
-When given a task, respond with JSON:
-{
-  "thought": "Your analysis of the task",
-  "proposal": {
-    "id": "<8-char-hex-hash>",
-    "type": "file_write|file_read|execute|screenshot|click|type|compound",
-    "description": "Human-readable description",
-    "actions": [
-      {"action": "action_type", "parameters": {...}}
-    ],
-    "successCriteria": "How to verify this succeeded",
-    "riskAssessment": "low|medium|high",
-    "riskReason": "Why this risk level"
-  }
-}`
+Reply with JSON only:
+{"thought": "brief analysis", "proposal": {"id": "abc123", "description": "what to do", "risk": "low|medium|high"}}`
     });
   }
 
@@ -96,24 +80,10 @@ class CriticAgent extends Agent {
       ...options,
       name: options.name || 'Critic',
       role: 'critic',
-      systemPrompt: `You are a Critic Agent in Thales, a collaborative multiplayer computer.
+      systemPrompt: `You are a Critic. Review proposals and score them.
 
-Your job is to REVIEW proposals from the Proposer Agent.
-Be thorough but fair. Identify real issues, not hypotheticals.
-
-For each proposal, respond with JSON:
-{
-  "thought": "Your critical analysis",
-  "critique": {
-    "score": 0-100,
-    "issues": [
-      {"severity": "critical|major|minor", "description": "Issue description"}
-    ],
-    "strengths": ["What's good about this proposal"],
-    "recommendation": "approve|revise|reject",
-    "revisionSuggestions": ["If revise, what changes needed"]
-  }
-}`
+Reply with JSON only:
+{"thought": "brief review", "critique": {"score": 0-100, "recommendation": "approve|reject", "reason": "why"}}`
     });
   }
 
@@ -170,25 +140,12 @@ class VerifierAgent extends Agent {
       ...options,
       name: options.name || 'Verifier',
       role: 'verifier',
-      systemPrompt: `You are a Verifier Agent in Thales, a collaborative multiplayer computer.
+      systemPrompt: `You are a Verifier. Make FINAL decision based ONLY on critic's score number.
 
-Your job is to make the FINAL decision on proposals.
-You receive both the proposal and the critic's review.
-Your decision MUST be deterministic - same inputs = same output.
+STRICT RULE: If score >= 70, output "VERIFIED". If score < 70, output "REJECTED".
+Ignore recommendation text. Only use the numeric score.
 
-Decision rules:
-- VERIFIED: Score >= 70 AND no critical issues AND recommendation is approve
-- REJECTED: Score < 50 OR any critical issue OR recommendation is reject
-- Otherwise: Use your judgment based on risk assessment
-
-Respond with JSON:
-{
-  "thought": "Your reasoning (be specific)",
-  "decision": "VERIFIED|REJECTED",
-  "confidence": 0-100,
-  "reason": "One-line explanation",
-  "conditions": ["Any conditions for execution, if VERIFIED"]
-}`
+Reply JSON: {"thought": "score is X so...", "decision": "VERIFIED", "confidence": 95}`
     });
   }
 

@@ -1,7 +1,8 @@
 /**
  * Thales Agent API Routes
  *
- * Provides HTTP endpoints for the multi-agent verification loop.
+ * Provides HTTP endpoints for the multi-agent verification loop
+ * and Phase 4 execution pipeline.
  */
 
 const {
@@ -9,14 +10,18 @@ const {
   ProposerAgent,
   CriticAgent,
   VerifierAgent,
-  VerificationLoop
+  VerificationLoop,
+  ExecutorAgent,
+  EthereumClient,
+  ExecutionPipeline
 } = require('./lib');
 
-// Configuration - use Docker-available models by default
+// Configuration - use same model for all agents to avoid model swapping delays
+const DEFAULT_MODEL = process.env.AGENT_MODEL || 'mistral:7b-instruct-v0.3-q4_K_M';
 const MODELS = {
-  proposer: process.env.PROPOSER_MODEL || 'mistral:7b-instruct-v0.3-q4_K_M',
-  critic: process.env.CRITIC_MODEL || 'mistral:7b-instruct-v0.3-q4_K_M',
-  verifier: process.env.VERIFIER_MODEL || 'codellama:7b-code-q4_K_M'
+  proposer: process.env.PROPOSER_MODEL || DEFAULT_MODEL,
+  critic: process.env.CRITIC_MODEL || DEFAULT_MODEL,
+  verifier: process.env.VERIFIER_MODEL || DEFAULT_MODEL
 };
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://ollama:11434';
@@ -24,6 +29,8 @@ const OLLAMA_URL = process.env.OLLAMA_URL || 'http://ollama:11434';
 // Singleton instances
 let verificationLoop = null;
 let agents = [];
+let executionPipeline = null;
+let ethereumClient = null;
 
 /**
  * Initialize the agent system
@@ -160,7 +167,139 @@ function registerAgentRoutes(app) {
     }
   });
 
-  console.log('[Agents] API routes registered');
+  // ==================== PHASE 4: EXECUTION PIPELINE ====================
+
+  // Initialize execution pipeline
+  async function initializePipeline() {
+    if (executionPipeline) return executionPipeline;
+
+    const loop = await initializeAgents();
+    ethereumClient = new EthereumClient();
+    await ethereumClient.initialize();
+
+    executionPipeline = new ExecutionPipeline({
+      verificationLoop: loop,
+      executor: new ExecutorAgent(),
+      blockchain: ethereumClient,
+      onProgress: (event) => console.log('[Pipeline] Progress:', event.event, event.stage || '')
+    });
+
+    console.log('[Pipeline] Initialized');
+    return executionPipeline;
+  }
+
+  // Full execution pipeline: verify -> stake -> execute -> record
+  app.post('/api/execute', async (req, res) => {
+    try {
+      const { task, context } = req.body;
+
+      if (!task) {
+        return res.status(400).json({ error: 'task is required' });
+      }
+
+      const pipeline = await initializePipeline();
+      const result = await pipeline.run(task, context || {});
+
+      res.json(result);
+    } catch (error) {
+      console.error('[Execute] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get pipeline history
+  app.get('/api/execute/history', async (req, res) => {
+    try {
+      const pipeline = await initializePipeline();
+      res.json({
+        history: pipeline.getHistory(),
+        stats: pipeline.getStats()
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== PHASE 4: CONTRACT ENDPOINTS ====================
+
+  // Contract status and addresses
+  app.get('/api/contracts/status', async (req, res) => {
+    try {
+      if (!ethereumClient) {
+        ethereumClient = new EthereumClient();
+      }
+      const health = await ethereumClient.isHealthy();
+      res.json({
+        ...health,
+        addresses: ethereumClient.getAddresses(),
+        signer: ethereumClient.getSignerAddress()
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get token balance
+  app.get('/api/contracts/balance/:address', async (req, res) => {
+    try {
+      if (!ethereumClient) {
+        ethereumClient = new EthereumClient();
+        await ethereumClient.initialize();
+      }
+      const balance = await ethereumClient.getBalance(req.params.address);
+      res.json(balance);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Claim faucet tokens
+  app.post('/api/contracts/faucet', async (req, res) => {
+    try {
+      if (!ethereumClient) {
+        ethereumClient = new EthereumClient();
+        await ethereumClient.initialize();
+      }
+      const result = await ethereumClient.claimFaucet();
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get proposals from registry
+  app.get('/api/contracts/proposals', async (req, res) => {
+    try {
+      if (!ethereumClient) {
+        ethereumClient = new EthereumClient();
+        await ethereumClient.initialize();
+      }
+      const offset = parseInt(req.query.offset) || 0;
+      const limit = parseInt(req.query.limit) || 10;
+      const result = await ethereumClient.getProposals(offset, limit);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== PHASE 4: STAKE ENDPOINTS ====================
+
+  // Get required stake for risk level
+  app.get('/api/stake/required/:risk', async (req, res) => {
+    try {
+      if (!ethereumClient) {
+        ethereumClient = new EthereumClient();
+        await ethereumClient.initialize();
+      }
+      const stake = await ethereumClient.getRequiredStake(req.params.risk);
+      res.json(stake);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  console.log('[Agents] API routes registered (Phase 4 enabled)');
 }
 
 module.exports = { registerAgentRoutes, initializeAgents };
