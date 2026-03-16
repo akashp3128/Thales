@@ -19,8 +19,10 @@ class ProposerAgent extends Agent {
       role: 'proposer',
       systemPrompt: `You are a Proposer. Analyze tasks and create action proposals.
 
+IMPORTANT: description must be a single string sentence, NOT an array.
+
 Reply with JSON only:
-{"thought": "brief analysis", "proposal": {"id": "abc123", "description": "what to do", "risk": "low|medium|high"}}`
+{"thought": "brief analysis", "proposal": {"id": "abc123", "description": "Create X file with Y content", "risk": "low"}}`
     });
   }
 
